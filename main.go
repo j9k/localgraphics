@@ -2,8 +2,10 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"net"
 	"net/http"
+	"os"
 )
 
 //start simple with just file server and uploader
@@ -19,16 +21,19 @@ func main() {
 	//scanline for computer name
 
 	//
-
-	//Routes
-	// "/"
-
-	// listen and serve
 	thePort := fmt.Sprintf(":%v", DEFAULTPORT)
 	theRootPath := "/"
 	theFileSystem := http.Dir(theRootPath)
 	theFileServer := http.FileServer(theFileSystem)
-	go http.ListenAndServe(thePort, theFileServer)
+	//Routes
+	// "/"
+	mux := http.NewServeMux()
+	mux.Handle("/", theFileServer)
+	mux.HandleFunc("/upload", uploadPageHandler) //serves the file
+	mux.HandleFunc("/upl", theUploadHandler)     //endpoint for file uploads
+	// listen and serve
+
+	go http.ListenAndServe(thePort, mux)
 	myIP := getMyLocalIP()
 	fmt.Printf("your local files are being served at %v:%v \n*********the \"ENTER\" key will kill the server**********", myIP, DEFAULTPORT)
 
@@ -38,6 +43,57 @@ func main() {
 	fmt.Scanln()
 
 	fmt.Println("end of line.......................................")
+}
+
+func uploadPageHandler(rw http.ResponseWriter, r *http.Request) {
+	rw.Header().Add("Content-Type", "text/html")
+	http.ServeFile(rw, r, "index.html")
+}
+
+func theUploadHandler(rw http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(rw, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	file, fileHeader, err := r.FormFile("file")
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	defer file.Close()
+
+	// Create the uploads folder if it doesn't
+	// already exist
+	err = os.MkdirAll("./uploads", os.ModePerm)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Create a new file in the uploads directory
+	var fileNameString string
+
+	fileNameString = fileHeader.Filename // This line in particular is what you're looking for.
+
+	dst, err := os.Create(fmt.Sprintf("./uploads/%s", fileNameString))
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	defer dst.Close()
+
+	// Copy the uploaded file to the filesystem
+	// at the specified destination
+	_, err = io.Copy(dst, file)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	fmt.Fprintf(rw, "Upload successful")
 }
 
 func getMyLocalIP() net.IP {
