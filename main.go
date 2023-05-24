@@ -35,7 +35,7 @@ func main() {
 
 	go http.ListenAndServe(thePort, mux)
 	myIP := getMyLocalIP()
-	fmt.Printf("your local files are being served at %v:%v \n*********the \"ENTER\" key will kill the server**********", myIP, DEFAULTPORT)
+	fmt.Printf("your local files are being served at %v:%v \n*********the \"ENTER\" key will kill the server**********\n", myIP, DEFAULTPORT)
 
 	//open the browser
 
