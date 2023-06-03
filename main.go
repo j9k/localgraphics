@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"html/template"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -15,22 +17,49 @@ import (
 
 const DEFAULTPORT = 7122
 
+type server struct {
+	Port         int
+	Name         string
+	HostName     string
+	IPAddress    net.IP
+	RootPath     string
+	HTMLTemplate *template.Template
+}
+
 func main() {
 	fmt.Println("Let's serve our files to our graphics machines")
+	//collect all the data to serve the web page
+
+	hst, err := os.Hostname()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var theServer server = server{
+		Port:         DEFAULTPORT,
+		Name:         "",
+		HostName:     hst,
+		IPAddress:    getMyLocalIP(),
+		RootPath:     "/",
+		HTMLTemplate: GiveMeUploadHTMLPointer(),
+	}
 
 	//scanline for computer name
 
 	//
-	thePort := fmt.Sprintf(":%v", DEFAULTPORT)
-	theRootPath := "/"
-	theFileSystem := http.Dir(theRootPath)
+	thePort := fmt.Sprintf(":%v", theServer.Port)
+
+	theFileSystem := http.Dir(theServer.RootPath)
 	theFileServer := http.FileServer(theFileSystem)
 	//Routes
 	// "/"
 	mux := http.NewServeMux()
 	mux.Handle("/", theFileServer)
-	mux.HandleFunc("/upload", uploadPageHandler) //serves the file
-	mux.HandleFunc("/upl", theUploadHandler)     //endpoint for file uploads
+	mux.HandleFunc("/upload", theServer.uploadPageHandler) //serves the file
+	mux.HandleFunc("/upl", theUploadHandler)               //endpoint for file uploads
+	//mux.NotFoundHandler(redirectToRoot)
+	//http.Handle("/", mux)
+
 	// listen and serve
 
 	go http.ListenAndServe(thePort, mux)
@@ -45,11 +74,19 @@ func main() {
 	fmt.Println("end of line.......................................")
 }
 
-func uploadPageHandler(rw http.ResponseWriter, r *http.Request) {
-	rw.Header().Add("Content-Type", "text/html")
-	http.ServeFile(rw, r, "index.html")
+//*********************************************************************************************
+
+// turn this into a method with a pointer to the html template
+func (serv *server) uploadPageHandler(rw http.ResponseWriter, r *http.Request) {
+	//rw.Header().Add("Content-Type", "text/html")
+	//http.ServeFile(rw, r, "index.html")
+	err := serv.HTMLTemplate.ExecuteTemplate(rw, "upload", nil)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+	}
 }
 
+// this is the destination of the uploaded file
 func theUploadHandler(rw http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(rw, "Method not allowed", http.StatusMethodNotAllowed)
@@ -73,11 +110,8 @@ func theUploadHandler(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create a new file in the uploads directory
-	var fileNameString string
 
-	fileNameString = fileHeader.Filename // This line in particular is what you're looking for.
-
-	dst, err := os.Create(fmt.Sprintf("./uploads/%s", fileNameString))
+	dst, err := os.Create(fmt.Sprintf("./uploads/%s", fileHeader.Filename))
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
@@ -123,3 +157,36 @@ func getMyLocalIP() net.IP {
 	}
 	return myIP
 }
+
+// need syntax for html
+func GiveMeUploadHTMLPointer() *template.Template {
+
+	const uploadPageConst = ` {{define "upload"}}
+<!DOCTYPE html>
+<html>
+ <body>
+<form
+  id="form"
+  enctype="multipart/form-data"
+  action="/upl"
+  method="POST"
+>
+  <input class="input file-input" type="file" name="file" multiple />
+  <button class="button" type="submit">Submit</button>
+</form>
+<p>UPLOAD YOUR FILES</p>
+</body>
+
+</html>
+{{end}}`
+
+	theUploadTemplatePointer, err := template.New("upload").Parse(uploadPageConst)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return theUploadTemplatePointer
+}
+
+//func redirectToRoot(w http.ResponseWriter, r *http.Request) {
+//	http.Redirect(w, r, "/", http.StatusSeeOther)
+//}
