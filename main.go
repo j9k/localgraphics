@@ -29,8 +29,7 @@ var (
 	portFlag        int
 	templates       map[string]*template.Template
 	err             error
-	serverStore     string = "/uploads"
-	upgrader               = websocket.Upgrader{}
+	upgrader        = websocket.Upgrader{}
 	WebPage         string
 	OptionsFileName string = "options.json"
 )
@@ -72,6 +71,13 @@ func NewOtherComputers() *[]OtherComputer {
 	oc := make([]OtherComputer, 0, 50)
 	return &oc
 }
+
+// data to be saved in the options.json file for persistance
+type Options struct {
+	ComputerName string `json:"computername"`
+	Port         int    `json:"port"`
+}
+
 func main() {
 	flag.Parse()
 	fmt.Println("Let's serve our files to our graphics machines")
@@ -107,7 +113,7 @@ func main() {
 		//	FilesQR:            new(string),
 	}
 
-	fmt.Println("theServer", theServer)
+	//fmt.Println("theServer", theServer)
 	pToTheServ := &theServer
 	pToTheServ.UpdateServerUploadPointer()
 	thePortString := fmt.Sprintf(":%v", portFlag)
@@ -136,13 +142,13 @@ func main() {
 	// listen and serve
 
 	MyIP := getMyLocalIP()
-	fmt.Printf("your local files are being served at %v%v \n*********the \"ENTER\" key will kill the server**********\n", MyIP, thePortString)
+	fmt.Printf("your local files are being served at %v%v%s \n*********the \"ENTER\" key will kill the server**********\n", MyIP, thePortString, theServer.UploadPath)
 
 	//open the browser
 
 	WebPage = fmt.Sprintf("http://%s:%v", MyIP, portFlag)
 	err = openWebPage(WebPage)
-	fmt.Println(WebPage)
+	//fmt.Println(WebPage)
 	if err != nil {
 		log.Panicln(err)
 	}
@@ -183,7 +189,7 @@ func (serv *server) optionsHandler(w http.ResponseWriter, r *http.Request) {
 func (serv *server) optionsPostHandler(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 	asdf := r.Form
-	fmt.Println(asdf)
+	//fmt.Println(asdf)
 	serv.Name = asdf.Get("cname")
 	http.Redirect(w, r, "/options", http.StatusFound)
 }
@@ -295,7 +301,7 @@ func (serv *server) UpdateServerUploadPointer() {
 	}
 
 	data := fmt.Sprintf("http://%s%s", serv.IPAddress, port)
-	fmt.Println(data)
+	//fmt.Println(data)
 	serv.UploadQR = ComposeQRData(data)
 }
 
@@ -509,7 +515,7 @@ func theWebsocket(w http.ResponseWriter, r *http.Request) {
 	var f *os.File
 
 	go func(conn *websocket.Conn) {
-		fmt.Println(os.Getwd())
+		//fmt.Println(os.Getwd())
 		err := os.Chdir("uploads") //don't use forward slash
 		if err != nil {
 			log.Println(err)
@@ -613,7 +619,7 @@ func (s *server) html(serverHost string, serverPort string) string {
 <a href="/admin">Back</a>
 </p>
 <p>
-`+*s.UploadQR+`
+` + *s.UploadQR + `
 </p>
 
 		<script>
