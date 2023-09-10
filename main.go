@@ -20,18 +20,20 @@ import (
 	"github.com/skip2/go-qrcode"
 )
 
-//start simple with just file server and uploader
-//how to go about finding other machines in the network
-//serve a single page that can upload to all machines or selective ones
-//figure out how to do it on mac vs pc
-
-var computerName string
-var portFlag int
-var templates map[string]*template.Template
-var err error
-var serverStore string = "/uploads"
-var upgrader = websocket.Upgrader{}
-var WebPage string
+// start simple with just file server and uploader
+// how to go about finding other machines in the network
+// serve a single page that can upload to all machines or selective ones
+// figure out how to do it on mac vs pc
+var (
+	computerName    string
+	portFlag        int
+	templates       map[string]*template.Template
+	err             error
+	serverStore     string = "/uploads"
+	upgrader               = websocket.Upgrader{}
+	WebPage         string
+	OptionsFileName string = "options.json"
+)
 
 func init() {
 	flag.StringVar(&computerName, "cn", "name not set", "The Role of or name of the computer GFX-1, Playback..")
@@ -101,13 +103,13 @@ func main() {
 		UploadPath:     uplPath,
 		TemplatesMap:   &templates,
 		OtherComputers: NewOtherComputers(), //default is 50 probably more than anone will ever need
-		//	UploadQR:           new(string),
+
 		//	FilesQR:            new(string),
 	}
 
 	fmt.Println("theServer", theServer)
 	pToTheServ := &theServer
-
+	pToTheServ.UpdateServerUploadPointer()
 	thePortString := fmt.Sprintf(":%v", portFlag)
 	pToTheServ.PrintServerStruct()
 	//	theFileSystem := http.Dir(theServer.FilesPath)
@@ -128,7 +130,7 @@ func main() {
 	mux.HandleFunc("/upload", theUploadHandler) //serves the file
 	mux.HandleFunc("/upl", theUploadHandler)    //endpoint for file uploads
 
-	mux.HandleFunc("/", mooSocket)
+	mux.HandleFunc("/", pToTheServ.mooSocket)
 	mux.HandleFunc("/ws", theWebsocket)
 
 	// listen and serve
@@ -203,11 +205,11 @@ func theUploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Create the uploads folder if it doesn't
 	// already exist
-//	err = os.MkdirAll("./uploads", os.ModePerm)
-//	if err != nil {
-//		http.Error(w, err.Error(), http.StatusInternalServerError)
-//		return
-//	}
+	//	err = os.MkdirAll("./uploads", os.ModePerm)
+	//	if err != nil {
+	//		http.Error(w, err.Error(), http.StatusInternalServerError)
+	//		return
+	//	}
 
 	// Create a new file in the uploads directory
 
@@ -285,16 +287,16 @@ func (serv *server) GiveMeFilesQRpointer() *string {
 	return ComposeQRData(data)
 }
 
-func (serv *server) GiveMeUploadQRpointer() *string {
+func (serv *server) UpdateServerUploadPointer() {
 	var port string = fmt.Sprintf(":%v", serv.Port)
 
 	if serv.Port == 80 {
 		port = ""
 	}
 
-	data := fmt.Sprintf("http://%s%s/%s", serv.IPAddress, port, serv.UploadPath)
+	data := fmt.Sprintf("http://%s%s", serv.IPAddress, port)
 	fmt.Println(data)
-	return ComposeQRData(data)
+	serv.UploadQR = ComposeQRData(data)
 }
 
 func ComposeQRData(data string) (qr *string) {
@@ -573,12 +575,11 @@ func jsmd5() string {
 `
 }
 
-func mooSocket(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprint(w, html("localhost", "7122"))
+func (s *server) mooSocket(w http.ResponseWriter, r *http.Request) {
+	fmt.Fprint(w, s.html("localhost", "7122"))
 }
 
-func html(serverHost string, serverPort string) string {
-
+func (s *server) html(serverHost string, serverPort string) string {
 	return `<!DOCTYPE HTML>
 	<html lang="en">
 	<head>
@@ -596,7 +597,7 @@ func html(serverHost string, serverPort string) string {
 <p>
 <form
 	enctype="multipart/form-data"
-      action="http://`+getMyLocalIP().String()+`:7122/upl"
+      action="http://` + getMyLocalIP().String() + `:7122/upl"
       method="post"
 	  >
   <label for="filenameformfor">File</label>
@@ -608,8 +609,12 @@ func html(serverHost string, serverPort string) string {
 	
 	
 	 </p>
-
+<p>
 <a href="/admin">Back</a>
+</p>
+<p>
+`+*s.UploadQR+`
+</p>
 
 		<script>
 
