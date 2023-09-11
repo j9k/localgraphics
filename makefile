@@ -5,7 +5,7 @@ delete:
 	rm deploy/macintel/localGFXintel
 	rm deploy/macarm/localGFXarm
 	rm deploy/windows/localGFXwin.exe
-
+	rm localGFX.zip
 
 build:
 	
@@ -18,4 +18,5 @@ build:
 
 
 	GOOS=windows GOARCH=amd64 go build -o deploy/windows/localGFXwin.exe main.go
- 	zip -r localGFX.zip deploy
+
+ 	#zip -r localGFX.zip deploy

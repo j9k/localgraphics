@@ -632,10 +632,13 @@ func jsmd5() string {
 }
 
 func (s *server) mooSocket(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprint(w, s.html("localhost", "7122"))
+
+	clientIP := r.RemoteAddr
+
+	fmt.Fprint(w, s.html("localhost", clientIP))
 }
 
-func (s *server) html(serverHost string, serverPort string) string {
+func (s *server) html(serverHost string, clientIP string) string {
 	return `<!DOCTYPE HTML>
 	<html lang="en">
 	<head>
@@ -648,6 +651,7 @@ func (s *server) html(serverHost string, serverPort string) string {
 
 <h1>Upload files to ---> ` + computerName + `</h1>
 <h3> Server IP ` + WebPage + `</h3>
+<h3> This computers IP ` + clientIP + `</h3>
 
 
 <p>
@@ -700,7 +704,7 @@ form.addEventListener('submit', handleSubmit);
 	progress.style.display = 'block'
 	progress.style.height = '20px'
 	progress.style.whiteSpace = 'nowrap'
-	var socket = new WebSocket('ws://` + serverHost + ":" + serverPort + `/ws')
+	var socket = new WebSocket('ws://` + serverHost + ":" + fmt.Sprint(s.Port) + `/ws')
 	socket.onmessage = function(e) {
 		if (e.data === 'ready') {
 			progress.innerHTML = progress.innerHTML.replace('please wait...', ' upload complete')
@@ -716,7 +720,7 @@ form.addEventListener('submit', handleSubmit);
 			console.log(socket.readyState)
 			socket.close()
 			setTimeout(function() {
-				socket = new WebSocket('ws://` + serverHost + ":" + serverPort + `/ws')
+				socket = new WebSocket('ws://` + serverHost + ":" + fmt.Sprint(s.Port) + `/ws')
 				if (typeof socket.onclose === 'undefined') socket.onclose = closeSocket
 				socket.onmessage = function(e) {
 					if (e.data === 'ready') {
