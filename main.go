@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"html/template"
@@ -32,10 +33,16 @@ var (
 	upgrader        = websocket.Upgrader{}
 	WebPage         string
 	OptionsFileName string = "options.json"
+	AppRootDir, _          = os.Getwd()
+	options                = NewOptions()
 )
 
 func init() {
-	flag.StringVar(&computerName, "cn", "name not set", "The Role of or name of the computer GFX-1, Playback..")
+
+	options.Load()
+
+	flag.StringVar(&OptionsFileName, "ofn", "options.json", "The name of the file that will persist options data. Default = \"options.json\"")
+	flag.StringVar(&computerName, "cn", options.ComputerName, "The Role of or name of the computer GFX-1, Playback..")
 	flag.IntVar(&portFlag, "port", 7122, "The port you want the server to use. default is 7122")
 
 	if templates == nil {
@@ -49,8 +56,9 @@ func init() {
 }
 
 type server struct {
-	Port           int    `json:"port"`
-	Name           string `json:"name"`
+	Port int    `json:"port"`
+	Name string `json:"name"`
+	Options
 	HostName       string `json:"hostname"`
 	IPAddress      net.IP `json:"ipaddress"`
 	WD             fs.FS
@@ -72,10 +80,45 @@ func NewOtherComputers() *[]OtherComputer {
 	return &oc
 }
 
+// st up a default options struct and retun the pointer
+func NewOptions() (pToO *Options) {
+	var opts Options = Options{
+		ComputerName: "ComputerName blank",
+		Port:         7122,
+	}
+	pToO = &opts
+	return pToO
+}
+
 // data to be saved in the options.json file for persistance
 type Options struct {
 	ComputerName string `json:"computername"`
 	Port         int    `json:"port"`
+}
+
+// write out the options to the options.json file
+func (o *Options) Save() {
+	os.Chdir(AppRootDir)
+	bFile, err := json.Marshal(o)
+	if err != nil {
+		log.Panicln(err)
+	}
+	err = os.WriteFile("options.json", bFile, 0777)
+	if err != nil {
+		log.Panicln(err)
+	}
+
+}
+
+func (opts *Options) Load() {
+	f, err := os.ReadFile("options.json")
+	if err != nil {
+		log.Println(err)
+	}
+	err = json.Unmarshal(f, opts)
+	if err != nil {
+		log.Println(err)
+	}
 }
 
 func main() {
@@ -101,8 +144,9 @@ func main() {
 
 	var theServer server = server{
 		Port:           portFlag,
-		Name:           "This is Name",
+		Name:           options.ComputerName,
 		HostName:       hst,
+		Options:        *options,
 		WD:             wdFS,
 		IPAddress:      getMyLocalIP(),
 		FilesPath:      "/",
@@ -113,7 +157,7 @@ func main() {
 		//	FilesQR:            new(string),
 	}
 
-	//fmt.Println("theServer", theServer)
+	fmt.Println("theServer name", theServer.Name)
 	pToTheServ := &theServer
 	pToTheServ.UpdateServerUploadPointer()
 	thePortString := fmt.Sprintf(":%v", portFlag)
@@ -181,7 +225,6 @@ func (serv *server) optionsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	computerName = serv.Name
 	opts.IP = r.RemoteAddr
-
 	renderTemplate(w, "options", "options", opts)
 }
 
@@ -191,6 +234,13 @@ func (serv *server) optionsPostHandler(w http.ResponseWriter, r *http.Request) {
 	asdf := r.Form
 	//fmt.Println(asdf)
 	serv.Name = asdf.Get("cname")
+	opts := NewOptions()
+
+	opts.ComputerName = serv.Name
+	opts.Port = serv.Port
+	//write out the options to the options.json file
+	opts.Save()
+
 	http.Redirect(w, r, "/options", http.StatusFound)
 }
 
