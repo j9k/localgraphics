@@ -18,3 +18,4 @@ build:
 
 
 	GOOS=windows GOARCH=amd64 go build -o deploy/windows/localGFXwin.exe main.go
+ 	zip -r localGFX.zip deploy
